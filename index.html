@@ -119,8 +119,7 @@
   </div>
   <p class="tagline">Escolha uma música e toque junto com as notas que caem!</p>
 
-  <h2>Músicas</h2>
-  <div id="songGrid" class="grid"></div>
+  <div id="library"></div>
 
   <div id="importedWrap" class="hidden">
     <h2>Minhas músicas</h2>
@@ -236,47 +235,175 @@ const settings = Object.assign({ soundForPiano: false }, store.get(KEY_STORE.set
    Formato: "NOTA[:batidas]" separados por espaço; "R" = pausa;
    acordes com "+" (ex.: C4+E4); "|" é só para leitura (barra de compasso).
    ===================================================================== */
+const CATEGORIES = ['Exercícios', 'Cantigas e infantis', 'Natal', 'Clássicos'];
+
 const BUILTIN_SONGS = [
+  /* ---------- Exercícios ---------- */
   {
-    id: 'do-re-mi', title: 'Dó Ré Mi Fá', subtitle: 'Cantiga infantil', level: 1, bpm: 96,
+    id: 'ex-cinco-dedos-d', category: 'Exercícios', title: 'Cinco dedos — mão direita', subtitle: 'Dó, Ré, Mi, Fá, Sol', level: 1, bpm: 80,
+    right: 'C4 D4 E4 F4 | G4 F4 E4 D4 | C4:2 R:2 | C4 D4 E4 F4 | G4 F4 E4 D4 | C4:4',
+  },
+  {
+    id: 'ex-cinco-dedos-e', category: 'Exercícios', title: 'Cinco dedos — mão esquerda', subtitle: 'Dó, Ré, Mi, Fá, Sol', level: 1, bpm: 80,
+    left: 'C3 D3 E3 F3 | G3 F3 E3 D3 | C3:2 R:2 | C3 D3 E3 F3 | G3 F3 E3 D3 | C3:4',
+  },
+  {
+    id: 'ex-escala-do', category: 'Exercícios', title: 'Escala de Dó maior', subtitle: 'Subindo e descendo', level: 1, bpm: 80,
+    right: 'C4 D4 E4 F4 | G4 A4 B4 C5 | C5 B4 A4 G4 | F4 E4 D4 C4 | C4:4',
+  },
+  {
+    id: 'ex-escala-duas-maos', category: 'Exercícios', title: 'Escala nas duas mãos', subtitle: 'As mãos juntas', level: 2, bpm: 72,
+    right: 'C4 D4 E4 F4 | G4 A4 B4 C5 | C5 B4 A4 G4 | F4 E4 D4 C4 | C4:4',
+    left:  'C3 D3 E3 F3 | G3 A3 B3 C4 | C4 B3 A3 G3 | F3 E3 D3 C3 | C3:4',
+  },
+  {
+    id: 'ex-acordes', category: 'Exercícios', title: 'Acordes de Dó, Fá e Sol', subtitle: 'Três notas juntas', level: 2, bpm: 72,
+    right: 'C4+E4+G4:2 C4+F4+A4:2 | B3+D4+G4:2 C4+E4+G4:2 | C4+E4+G4:2 C4+F4+A4:2 | B3+D4+G4:2 C4+E4+G4:2',
+  },
+
+  /* ---------- Cantigas e infantis ---------- */
+  {
+    id: 'do-re-mi', category: 'Cantigas e infantis', title: 'O Pastorzinho (Dó Ré Mi Fá)', subtitle: 'Cantiga infantil', level: 1, bpm: 96,
     right: 'C4 D4 E4 F4 | F4 F4:2 R | C4 D4 C4 D4 | D4 D4:2 R | C4 G4 F4 E4 | E4 E4:2 R | C4 D4 E4 F4 | F4 F4:2 R',
   },
   {
-    id: 'estrelinha', title: 'Brilha, Brilha Estrelinha', subtitle: 'Canção tradicional', level: 1, bpm: 92,
+    id: 'paezinhos', category: 'Cantigas e infantis', title: 'Pãezinhos Quentes', subtitle: 'Canção tradicional inglesa', level: 1, bpm: 100,
+    right: 'E4 D4 C4:2 | E4 D4 C4:2 | C4:0.5 C4:0.5 C4:0.5 C4:0.5 D4:0.5 D4:0.5 D4:0.5 D4:0.5 | E4 D4 C4:2',
+  },
+  {
+    id: 'estrelinha', category: 'Cantigas e infantis', title: 'Brilha, Brilha Estrelinha', subtitle: 'Canção tradicional', level: 1, bpm: 92,
     right: 'C4 C4 G4 G4 | A4 A4 G4:2 | F4 F4 E4 E4 | D4 D4 C4:2 | G4 G4 F4 F4 | E4 E4 D4:2 | ' +
            'G4 G4 F4 F4 | E4 E4 D4:2 | C4 C4 G4 G4 | A4 A4 G4:2 | F4 F4 E4 E4 | D4 D4 C4:2',
   },
   {
-    id: 'carneirinho', title: 'Maria Tinha um Carneirinho', subtitle: 'Canção tradicional', level: 1, bpm: 100,
+    id: 'carneirinho', category: 'Cantigas e infantis', title: 'Maria Tinha um Carneirinho', subtitle: 'Canção tradicional', level: 1, bpm: 100,
     right: 'E4 D4 C4 D4 | E4 E4 E4:2 | D4 D4 D4:2 | E4 G4 G4:2 | E4 D4 C4 D4 | E4 E4 E4 E4 | D4 D4 E4 D4 | C4:4',
   },
   {
-    id: 'frei-joao', title: 'Frei João', subtitle: 'Canção tradicional', level: 2, bpm: 100,
+    id: 'joaozinho', category: 'Cantigas e infantis', title: 'Joãozinho (Hänschen Klein)', subtitle: 'Canção tradicional alemã', level: 1, bpm: 100,
+    right: 'G4 E4 E4:2 | F4 D4 D4:2 | C4 D4 E4 F4 | G4 G4 G4:2 | G4 E4 E4:2 | F4 D4 D4:2 | C4 E4 G4 G4 | C4:4 | ' +
+           'D4 D4 D4 D4 | D4 E4 F4:2 | E4 E4 E4 E4 | E4 F4 G4:2 | G4 E4 E4:2 | F4 D4 D4:2 | C4 E4 G4 G4 | C4:4',
+  },
+  {
+    id: 'seu-lobato', category: 'Cantigas e infantis', title: 'Seu Lobato Tinha um Sítio', subtitle: 'Canção tradicional', level: 1, bpm: 110,
+    right: 'G4 G4 G4 D4 | E4 E4 D4:2 | B4 B4 A4 A4 | G4:3 D4 | G4 G4 G4 D4 | E4 E4 D4:2 | B4 B4 A4 A4 | G4:4',
+  },
+  {
+    id: 'ao-luar', category: 'Cantigas e infantis', title: 'Ao Luar (Au Clair de la Lune)', subtitle: 'Canção tradicional francesa', level: 1, bpm: 100,
+    right: 'C4 C4 C4 D4 | E4:2 D4:2 | C4 E4 D4 D4 | C4:4 | C4 C4 C4 D4 | E4:2 D4:2 | C4 E4 D4 D4 | C4:4 | ' +
+           'D4 D4 D4 D4 | A3:2 A3:2 | D4 C4 B3 A3 | G3:4 | C4 C4 C4 D4 | E4:2 D4:2 | C4 E4 D4 D4 | C4:4',
+  },
+  {
+    id: 'frei-joao', category: 'Cantigas e infantis', title: 'Frei João', subtitle: 'Canção tradicional', level: 2, bpm: 100,
     right: 'C4 D4 E4 C4 | C4 D4 E4 C4 | E4 F4 G4:2 | E4 F4 G4:2 | ' +
            'G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4 C4 | G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4 C4 | C4 G3 C4:2 | C4 G3 C4:2',
   },
   {
-    id: 'ode-alegria', title: 'Ode à Alegria', subtitle: 'Beethoven', level: 2, bpm: 100,
-    right: 'E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | E4:1.5 D4:0.5 D4:2 | ' +
-           'E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4:1.5 C4:0.5 C4:2',
-    left:  'C3:4 | G3:4 | C3:4 | C3:2 G3:2 | C3:4 | G3:4 | C3:4 | G3:2 C3:2',
+    id: 'rema-rema', category: 'Cantigas e infantis', title: 'Rema, Rema (Row Your Boat)', subtitle: 'Canção tradicional', level: 2, bpm: 90,
+    right: 'C4:1.5 C4:1.5 | C4 D4:0.5 E4:1.5 | E4 D4:0.5 E4 F4:0.5 | G4:3 | ' +
+           'C5:0.5 C5:0.5 C5:0.5 G4:0.5 G4:0.5 G4:0.5 | E4:0.5 E4:0.5 E4:0.5 C4:0.5 C4:0.5 C4:0.5 | G4 F4:0.5 E4 D4:0.5 | C4:3',
   },
   {
-    id: 'jingle-bells', title: 'Jingle Bells', subtitle: 'James Pierpont', level: 2, bpm: 120,
+    id: 'ponte-londres', category: 'Cantigas e infantis', title: 'Ponte de Londres', subtitle: 'Canção tradicional inglesa', level: 2, bpm: 100,
+    right: 'G4:1.5 A4:0.5 G4 F4 | E4 F4 G4:2 | D4 E4 F4:2 | E4 F4 G4:2 | G4:1.5 A4:0.5 G4 F4 | E4 F4 G4:2 | D4:2 G4:2 | E4 C4:3',
+  },
+  {
+    id: 'parabens', category: 'Cantigas e infantis', title: 'Parabéns pra Você (melodia)', subtitle: 'Melodia tradicional', level: 2, bpm: 100,
+    right: 'C4:0.75 C4:0.25 | D4 C4 F4 | E4:2 C4:0.75 C4:0.25 | D4 C4 G4 | F4:2 C4:0.75 C4:0.25 | ' +
+           'C5 A4 F4 | E4 D4 Bb4:0.75 Bb4:0.25 | A4 F4 G4 | F4:3',
+  },
+  {
+    id: 'yankee-doodle', category: 'Cantigas e infantis', title: 'Yankee Doodle', subtitle: 'Canção tradicional americana', level: 2, bpm: 120,
+    right: 'C4 C4 D4 E4 | C4 E4 D4 G3 | C4 C4 D4 E4 | C4:2 B3:2 | C4 C4 D4 E4 | F4 E4 D4 C4 | B3 G3 A3 B3 | C4:2 C4:2',
+  },
+  {
+    id: 'oh-susana', category: 'Cantigas e infantis', title: 'Oh! Susana', subtitle: 'Stephen Foster', level: 2, bpm: 110,
+    right: 'C4:0.5 D4:0.5 | E4 G4 G4:1.5 A4:0.5 | G4 E4 C4:1.5 D4:0.5 | E4 E4 D4 C4 | D4:3 C4:0.5 D4:0.5 | ' +
+           'E4 G4 G4:1.5 A4:0.5 | G4 E4 C4:1.5 D4:0.5 | E4 E4 D4 D4 | C4:4',
+  },
+
+  /* ---------- Natal ---------- */
+  {
+    id: 'noite-feliz', category: 'Natal', title: 'Noite Feliz', subtitle: 'Franz Gruber', level: 2, bpm: 70,
+    right: 'G4:1.5 A4:0.5 G4 | E4:3 | G4:1.5 A4:0.5 G4 | E4:3 | D5:2 D5 | B4:3 | C5:2 C5 | G4:3 | ' +
+           'A4:2 A4 | C5:1.5 B4:0.5 A4 | G4:1.5 A4:0.5 G4 | E4:3 | A4:2 A4 | C5:1.5 B4:0.5 A4 | G4:1.5 A4:0.5 G4 | E4:3 | ' +
+           'D5:2 D5 | F5:1.5 D5:0.5 B4 | C5:3 | E5:3 | C5 G4 E4 | G4:1.5 F4:0.5 D4 | C4:6',
+  },
+  {
+    id: 'jingle-bells', category: 'Natal', title: 'Jingle Bells', subtitle: 'James Pierpont', level: 2, bpm: 120,
     right: 'E4 E4 E4:2 | E4 E4 E4:2 | E4 G4 C4:1.5 D4:0.5 | E4:4 | F4 F4 F4:1.5 F4:0.5 | F4 E4 E4 E4:0.5 E4:0.5 | ' +
            'E4 D4 D4 E4 | D4:2 G4:2 | E4 E4 E4:2 | E4 E4 E4:2 | E4 G4 C4:1.5 D4:0.5 | E4:4 | ' +
            'F4 F4 F4 F4 | F4 E4 E4 E4:0.5 E4:0.5 | G4 G4 F4 D4 | C4:4',
   },
   {
-    id: 'minueto-sol', title: 'Minueto em Sol', subtitle: 'Petzold / Caderno de Anna Magdalena Bach', level: 3, bpm: 108,
+    id: 'feliz-natal', category: 'Natal', title: 'Desejamos um Feliz Natal', subtitle: 'Canção tradicional inglesa', level: 2, bpm: 120,
+    right: 'D4 | G4 G4:0.5 A4:0.5 G4:0.5 F#4:0.5 | E4 E4 E4 | A4 A4:0.5 B4:0.5 A4:0.5 G4:0.5 | F#4 D4 D4 | ' +
+           'B4 B4:0.5 C5:0.5 B4:0.5 A4:0.5 | G4 E4 D4:0.5 D4:0.5 | E4 A4 F#4 | G4:2',
+  },
+  {
+    id: 'alegria-mundo', category: 'Natal', title: 'Alegria ao Mundo', subtitle: 'Lowell Mason / Händel', level: 2, bpm: 90,
+    right: 'C5 B4:0.75 A4:0.25 | G4:1.5 F4:0.5 | E4 D4 | C4:1.5 G4:0.5 | A4:1.5 A4:0.5 | B4:1.5 B4:0.5 | C5:3',
+  },
+  {
+    id: 'deck-halls', category: 'Natal', title: 'Deck the Halls', subtitle: 'Canção tradicional galesa', level: 2, bpm: 110,
+    right: 'G4:1.5 F4:0.5 E4 D4 | C4 D4 E4 C4 | D4:0.5 E4:0.5 F4:0.5 D4:0.5 E4:1.5 D4:0.5 | C4 B3 C4:2 | ' +
+           'G4:1.5 F4:0.5 E4 D4 | C4 D4 E4 C4 | D4:0.5 E4:0.5 F4:0.5 D4:0.5 E4:1.5 D4:0.5 | C4 B3 C4:2',
+  },
+
+  /* ---------- Clássicos ---------- */
+  {
+    id: 'ode-alegria', category: 'Clássicos', title: 'Ode à Alegria', subtitle: 'Beethoven', level: 2, bpm: 100,
+    right: 'E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | E4:1.5 D4:0.5 D4:2 | ' +
+           'E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4:1.5 C4:0.5 C4:2',
+    left:  'C3:4 | G3:4 | C3:4 | C3:2 G3:2 | C3:4 | G3:4 | C3:4 | G3:2 C3:2',
+  },
+  {
+    id: 'novo-mundo', category: 'Clássicos', title: 'Sinfonia do Novo Mundo (Largo)', subtitle: 'Dvořák', level: 2, bpm: 60,
+    right: 'E4:1.5 G4:0.5 G4:2 | E4:1.5 D4:0.5 C4:2 | D4 E4 G4 E4 | D4:4 | ' +
+           'E4:1.5 G4:0.5 G4:2 | E4:1.5 D4:0.5 C4:2 | D4 E4 D4 C4 | C4:4',
+  },
+  {
+    id: 'manha', category: 'Clássicos', title: 'A Manhã (Peer Gynt)', subtitle: 'Grieg', level: 2, bpm: 80,
+    right: 'G4 E4:0.5 D4 C4:0.5 | D4 E4:0.5 G4 E4:0.5 | D4 C4:0.5 D4:0.5 E4:0.5 D4:0.5 | ' +
+           'E4 G4:0.5 E4 G4:0.5 | A4 E4:0.5 A4 G4:0.5 | E4 D4:0.5 C4:3',
+  },
+  {
+    id: 'canone', category: 'Clássicos', title: 'Cânone em Ré', subtitle: 'Pachelbel', level: 2, bpm: 80,
+    right: 'F#5:2 E5:2 | D5:2 C#5:2 | B4:2 A4:2 | B4:2 C#5:2 | D5:2 C#5:2 | B4:2 A4:2 | G4:2 F#4:2 | G4:2 E4:2 | D5:4',
+    left:  'D3:2 A2:2 | B2:2 F#2:2 | G2:2 D2:2 | G2:2 A2:2 | D3:2 A2:2 | B2:2 F#2:2 | G2:2 D2:2 | G2:2 A2:2 | D3:4',
+  },
+  {
+    id: 'minueto-sol', category: 'Clássicos', title: 'Minueto em Sol', subtitle: 'Petzold / Caderno de Anna Magdalena Bach', level: 3, bpm: 108,
     right: 'D5 G4:0.5 A4:0.5 B4:0.5 C5:0.5 | D5 G4 G4 | E5 C5:0.5 D5:0.5 E5:0.5 F#5:0.5 | G5 G4 G4 | ' +
            'C5 D5:0.5 C5:0.5 B4:0.5 A4:0.5 | B4 C5:0.5 B4:0.5 A4:0.5 G4:0.5 | F#4 G4:0.5 A4:0.5 B4:0.5 G4:0.5 | A4:3 | ' +
            'D5 G4:0.5 A4:0.5 B4:0.5 C5:0.5 | D5 G4 G4 | E5 C5:0.5 D5:0.5 E5:0.5 F#5:0.5 | G5 G4 G4 | ' +
            'C5 D5:0.5 C5:0.5 B4:0.5 A4:0.5 | B4 C5:0.5 B4:0.5 A4:0.5 G4:0.5 | A4 B4:0.5 A4:0.5 G4:0.5 F#4:0.5 | G4:3',
   },
   {
+    id: 'rei-montanha', category: 'Clássicos', title: 'Na Gruta do Rei da Montanha', subtitle: 'Grieg', level: 3, bpm: 100,
+    right: 'A3:0.5 B3:0.5 C4:0.5 D4:0.5 E4:0.5 C4:0.5 E4 | D#4:0.5 B3:0.5 D#4 D4:0.5 Bb3:0.5 D4 | ' +
+           'A3:0.5 B3:0.5 C4:0.5 D4:0.5 E4:0.5 C4:0.5 E4:0.5 A4:0.5 | G4:0.5 E4:0.5 C4:0.5 E4:0.5 G4:2',
+  },
+  {
+    id: 'serenata', category: 'Clássicos', title: 'Pequena Serenata Noturna', subtitle: 'Mozart', level: 3, bpm: 120,
+    right: 'G4 R:0.5 D4:0.5 G4 R:0.5 D4:0.5 | G4:0.5 D4:0.5 G4:0.5 B4:0.5 D5:2 | ' +
+           'C5 R:0.5 A4:0.5 C5 R:0.5 A4:0.5 | C5:0.5 A4:0.5 F#4:0.5 A4:0.5 D4:2',
+  },
+  {
     // unidade = semicolcheia
-    id: 'fur-elise', title: 'Für Elise (início)', subtitle: 'Beethoven', level: 3, bpm: 240,
+    id: 'marcha-turca', category: 'Clássicos', title: 'Marcha Turca (início)', subtitle: 'Mozart', level: 3, bpm: 260,
+    right: 'B3 A3 G#3 A3 C4:4 | D4 C4 B3 C4 E4:4 | F4 E4 D#4 E4 B4 A4 G#4 A4 B4 A4 G#4 A4 C5:4',
+  },
+  {
+    // unidade = semicolcheia
+    id: 'preludio-do', category: 'Clássicos', title: 'Prelúdio em Dó (início)', subtitle: 'Bach', level: 3, bpm: 280,
+    right: 'C4 E4 G4 C5 E5 G4 C5 E5 | C4 E4 G4 C5 E5 G4 C5 E5 | C4 D4 A4 D5 F5 A4 D5 F5 | C4 D4 A4 D5 F5 A4 D5 F5 | ' +
+           'B3 D4 G4 D5 F5 G4 D5 F5 | B3 D4 G4 D5 F5 G4 D5 F5 | C4 E4 G4 C5 E5 G4 C5 E5 | C4 E4 G4 C5 E5 G4 C5 E5 | ' +
+           'C4 E4 A4 E5 A5 A4 E5 A5 | C4 E4 A4 E5 A5 A4 E5 A5 | C4+E4+G4+C5:8',
+  },
+  {
+    // unidade = semicolcheia
+    id: 'fur-elise', category: 'Clássicos', title: 'Für Elise (início)', subtitle: 'Beethoven', level: 3, bpm: 240,
     right: 'E5 D#5 | E5 D#5 E5 B4 D5 C5 | A4:2 R C4 E4 A4 | B4:2 R E4 G#4 B4 | C5:2 R E4 E5 D#5 | ' +
            'E5 D#5 E5 B4 D5 C5 | A4:2 R C4 E4 A4 | B4:2 R E4 C5 B4 | A4:4',
     left:  'R:2 | R:6 | A2 E3 A3 R:3 | E2 E3 G#3 R:3 | A2 E3 A3 R:3 | R:6 | A2 E3 A3 R:3 | E2 E3 G#3 R:3 | A2 E3 A3 R',
@@ -318,9 +445,10 @@ function finalizeSong(song) {
 
 function buildSong(def) {
   const secPerBeat = 60 / def.bpm;
-  const notes = parseTrack(def.right, secPerBeat, 'right');
+  const notes = [];
+  if (def.right) notes.push(...parseTrack(def.right, secPerBeat, 'right'));
   if (def.left) notes.push(...parseTrack(def.left, secPerBeat, 'left'));
-  return finalizeSong({ id: def.id, title: def.title, subtitle: def.subtitle, level: def.level, notes });
+  return finalizeSong({ id: def.id, title: def.title, subtitle: def.subtitle, level: def.level, category: def.category, notes });
 }
 
 /* =====================================================================
@@ -548,9 +676,16 @@ function songCard(song, best) {
 
 function renderHome() {
   const best = store.get(KEY_STORE.best, {});
-  const grid = $('#songGrid');
-  grid.textContent = '';
-  builtinSongs.forEach(s => grid.appendChild(songCard(s, best)));
+  const library = $('#library');
+  library.textContent = '';
+  for (const category of CATEGORIES) {
+    const songs = builtinSongs.filter(s => s.category === category).sort((a, b) => a.level - b.level);
+    if (!songs.length) continue;
+    library.appendChild(el('h2', null, `${category} (${songs.length})`));
+    const grid = el('div', 'grid');
+    songs.forEach(s => grid.appendChild(songCard(s, best)));
+    library.appendChild(grid);
+  }
   const importedGrid = $('#importedGrid');
   importedGrid.textContent = '';
   importedSongs.forEach(s => importedGrid.appendChild(songCard(s, best)));
