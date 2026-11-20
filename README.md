@@ -12,7 +12,8 @@ Também funciona sem piano: dá para tocar nas teclas da tela ou, no computador,
 
 ## Recursos
 
-- Biblioteca com músicas de domínio público em 3 níveis
+- 33 músicas de domínio público em 4 categorias (Exercícios, Cantigas e infantis, Natal, Clássicos) e 3 níveis
+- Cada música tem a versão **Fácil** (só a melodia) e a **Completa** (as duas mãos)
 - Modos **Ouvir**, **Esperar** (a música para até a nota certa) e **No ritmo** (com pontuação)
 - Mão direita, mão esquerda ou as duas; o app toca a outra mão como acompanhamento
 - Velocidade ajustável de 30% a 120%
@@ -21,3 +22,9 @@ Também funciona sem piano: dá para tocar nas teclas da tela ou, no computador,
 ## Técnico
 
 Um único `index.html` sem dependências, que usa Web MIDI, Web Audio e Canvas. O Web MIDI exige HTTPS, por isso o app é publicado pelo GitHub Pages.
+
+Nas músicas curtas, a mão esquerda da versão completa é gerada a partir da melodia, tocando a fundamental do acorde a cada meio compasso.
+
+## Créditos
+
+As versões completas do **Prelúdio em Dó** (Bach, BWV 846), do **Minueto em Sol** (BWV Anh. 114) e de **Für Elise** (Beethoven, WoO 59) foram tiradas das partituras do [Mutopia Project](https://www.mutopiaproject.org), que estão em domínio público.
