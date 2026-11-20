@@ -67,6 +67,11 @@
   .check input { width: 22px; height: 22px; accent-color: var(--accent); }
   .help { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 720px; }
   #homeToast { min-height: 22px; font-weight: 700; color: var(--accent); }
+  .diag { background: #ffffff0d; border-radius: 20px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
+  .diag-key { font-size: 26px; font-weight: 900; }
+  .diag-key.on { color: var(--good); }
+  .diag-info { color: var(--muted); font-size: 14px; font-family: ui-monospace, monospace; }
+  .diag .btn { align-self: flex-start; }
 
   /* ---------- Player ---------- */
   .topbar {
@@ -132,6 +137,14 @@
     Arquivos com duas trilhas viram mão direita e mão esquerda automaticamente (a mais aguda é a direita).
     Com uma trilha só, as notas a partir do Dó central vão para a direita.
   </p>
+
+  <h2>Testar o piano</h2>
+  <div class="diag">
+    <div id="diagKey" class="diag-key">Toque qualquer tecla do piano…</div>
+    <div id="diagInfo" class="diag-info"></div>
+    <div id="diagHint" class="help"></div>
+    <button id="midiRetry" class="btn ghost" type="button">🔄 Procurar o piano de novo</button>
+  </div>
 
   <h2>Ajustes</h2>
   <label class="check"><input id="soundForPiano" type="checkbox"> Tocar som no tablet também quando o piano estiver conectado</label>
@@ -588,9 +601,34 @@ $('#fullscreenBtn').addEventListener('click', async () => {
 /* =====================================================================
    Entrada: piano via USB (Web MIDI), toque na tela e teclado do PC
    ===================================================================== */
-const midiState = { names: [], status: 'searching' };
+// O MIDIAccess fica numa variável global: se ele for coletado pelo garbage collector,
+// alguns Chromes param de entregar as mensagens dos inputs.
+const midiState = { access: null, names: [], status: 'searching', messages: 0, notes: 0, lastRaw: '' };
+
+function renderDiag() {
+  const info = $('#diagInfo');
+  const hint = $('#diagHint');
+  const lines = [
+    `Entradas MIDI: ${midiState.names.length ? midiState.names.join(', ') : 'nenhuma'}`,
+    `Mensagens recebidas: ${midiState.messages} · notas: ${midiState.notes}`,
+  ];
+  if (midiState.lastRaw) lines.push(`Última mensagem: ${midiState.lastRaw}`);
+  info.textContent = lines.join('\n');
+  info.style.whiteSpace = 'pre-line';
+
+  if (!midiState.names.length) {
+    hint.textContent = 'Nenhum dispositivo MIDI apareceu. Confira o cabo USB (às vezes precisa de um adaptador OTG) e toque em “Procurar o piano de novo”.';
+  } else if (midiState.notes > 0) {
+    hint.textContent = 'Tudo certo! O piano está mandando as notas. 🎉';
+  } else if (midiState.messages > 0) {
+    hint.textContent = 'O cabo está recebendo sinal do piano, mas nenhuma nota ainda. Toque algumas teclas com mais força; se continuar assim, veja nas configurações do piano se a saída MIDI está ligada.';
+  } else {
+    hint.textContent = 'A interface foi encontrada, mas nada chega do piano. Na maioria das vezes os dois plugues do cabo estão invertidos (cada fabricante etiqueta “IN” e “OUT” de um jeito). Troque os dois de lugar no piano e teste de novo.';
+  }
+}
 
 function renderMidiStatus() {
+  renderDiag();
   const chip = $('#midiChip');
   const connected = midiState.names.length > 0;
   chip.classList.toggle('on', connected);
@@ -604,11 +642,14 @@ function renderMidiStatus() {
 async function initMidi() {
   if (!navigator.requestMIDIAccess) { midiState.status = 'unsupported'; renderMidiStatus(); return; }
   try {
-    const access = await navigator.requestMIDIAccess();
+    const access = midiState.access || await navigator.requestMIDIAccess({ sysex: false });
+    midiState.access = access;
     const bind = () => {
       midiState.names = [];
       access.inputs.forEach(input => {
+        if (input.state === 'disconnected') return;
         input.onmidimessage = onMidiMessage;
+        if (input.open) input.open().catch(() => {});
         midiState.names.push(input.name || 'Piano');
       });
       midiState.status = 'ok';
@@ -622,12 +663,46 @@ async function initMidi() {
   }
 }
 
+const toHex = bytes => Array.from(bytes, b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+
 function onMidiMessage(e) {
-  const [status, d1, d2] = e.data;
+  const data = e.data;
+  if (!data || !data.length) return;
+  const status = data[0];
+  // relógio e "active sensing" chegam o tempo todo; não contam para o diagnóstico
+  if (status === 0xf8 || status === 0xfe) return;
+
+  midiState.messages++;
+  midiState.lastRaw = toHex(data);
   const type = status & 0xf0;
-  if (type === 0x90 && d2 > 0) pressKey(d1, d2 / 127, 'midi');
-  else if (type === 0x80 || (type === 0x90 && d2 === 0)) releaseKey(d1, 'midi');
+  const d1 = data[1], d2 = data[2] || 0;
+
+  if (type === 0x90 && d2 > 0) {
+    midiState.notes++;
+    showDiagNote(d1);
+    pressKey(d1, d2 / 127, 'midi');
+  } else if (type === 0x80 || (type === 0x90 && d2 === 0)) {
+    releaseKey(d1, 'midi');
+  }
+  if (!playerVisible()) renderDiag();
 }
+
+function showDiagNote(midi) {
+  const box = $('#diagKey');
+  box.textContent = `🎹 ${noteName(midi)}${Math.floor(midi / 12) - 1} (nota ${midi})`;
+  box.classList.add('on');
+}
+
+$('#midiRetry').addEventListener('click', () => {
+  midiState.messages = 0;
+  midiState.notes = 0;
+  midiState.lastRaw = '';
+  $('#diagKey').textContent = 'Toque qualquer tecla do piano…';
+  $('#diagKey').classList.remove('on');
+  midiState.status = 'searching';
+  renderMidiStatus();
+  initMidi();
+});
 
 /* =====================================================================
    Estado da prática
