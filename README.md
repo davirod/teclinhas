@@ -17,6 +17,7 @@ Também funciona sem piano: dá para tocar nas teclas da tela ou, no computador,
 - Modos **Ouvir**, **Esperar** (a música para até a nota certa) e **No ritmo** (com pontuação)
 - Mão direita, mão esquerda ou as duas; o app toca a outra mão como acompanhamento
 - Velocidade ajustável de 30% a 120%
+- Gravação: ⏺ grava o que ela toca e 🎤 grava também a voz pelo microfone. As gravações ficam no próprio aparelho, em "Minhas gravações"
 - Importação de arquivos `.mid`: duas trilhas viram mão direita e mão esquerda automaticamente
 
 ## Técnico

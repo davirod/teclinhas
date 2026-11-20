@@ -107,6 +107,26 @@
   .result-stars .off { opacity: .2; }
   .result-msg { font-size: 26px; font-weight: 900; margin-bottom: 6px; }
   .result-detail { color: var(--muted); font-size: 16px; margin-bottom: 22px; }
+
+  /* Gravação */
+  .iconbtn.on { background: var(--accent); color: #2a1f00; }
+  .iconbtn.rec { color: #ff5d73; font-size: 22px; }
+  .iconbtn.rec.recording { background: #ff5d73; color: #fff; animation: pulse 1s infinite; }
+  .iconbtn:disabled { opacity: .4; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px #ff5d7333; } }
+  .rec-list { display: flex; flex-direction: column; gap: 10px; max-width: 900px; }
+  .rec-item { display: flex; align-items: center; gap: 12px; background: #ffffff0d; border-radius: 18px; padding: 12px 16px; flex-wrap: wrap; }
+  .rec-info { flex: 1; min-width: 200px; }
+  .rec-title { font-weight: 900; font-size: 17px; }
+  .rec-meta { color: var(--muted); font-size: 14px; }
+  .rec-item .btn { padding: 10px 14px; font-size: 14px; box-shadow: none; }
+  .rec-item a.btn { text-decoration: none; }
+  #playback { position: fixed; z-index: 20; }
+  .playback-box { background: var(--panel); border-radius: 28px; padding: 26px 30px; width: min(520px, 92vw); box-shadow: 0 10px 0 #0006; }
+  .playback-title { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
+  .playback-bar { height: 10px; background: #0006; border-radius: 999px; overflow: hidden; margin: 16px 0 6px; }
+  .playback-bar div { height: 100%; width: 0; background: var(--accent); }
+  .playback-time { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
@@ -120,6 +140,11 @@
     <button id="fullscreenBtn" class="btn ghost" type="button">⛶ Tela cheia</button>
   </div>
   <p class="tagline">Escolha uma música e toque junto com as notas que caem!</p>
+
+  <div id="recordingsWrap" class="hidden">
+    <h2>Minhas gravações</h2>
+    <div id="recList" class="rec-list"></div>
+  </div>
 
   <div id="library"></div>
 
@@ -169,6 +194,8 @@
       <button type="button" data-mode="play">🎵 No ritmo</button>
     </div>
     <label class="speed">🐢 <input id="speed" type="range" min="30" max="120" step="10" value="70"> <span id="speedVal">70%</span></label>
+    <button id="micBtn" class="iconbtn" type="button" aria-label="Gravar a voz também">🎤</button>
+    <button id="recBtn" class="iconbtn rec" type="button" aria-label="Gravar">⏺</button>
     <button id="restartBtn" class="iconbtn" type="button" aria-label="Recomeçar">↺</button>
     <button id="playBtn" class="iconbtn primary" type="button" aria-label="Tocar/Pausar">❚❚</button>
   </div>
@@ -181,10 +208,28 @@
         <div id="resultMsg" class="result-msg"></div>
         <div id="resultDetail" class="result-detail"></div>
         <div class="row" style="justify-content:center">
+          <button id="listenRecBtn" class="btn ghost hidden" type="button">▶ Ouvir gravação</button>
           <button id="againBtn" class="btn" type="button">↺ Tentar de novo</button>
           <button id="otherBtn" class="btn ghost" type="button">Outras músicas</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="playback" class="overlay hidden">
+  <div class="playback-box">
+    <div id="pbTitle" class="playback-title"></div>
+    <div id="pbMeta" class="rec-meta"></div>
+    <div class="playback-bar"><div id="pbFill"></div></div>
+    <div id="pbTime" class="playback-time"></div>
+    <div class="row">
+      <label class="check"><input id="pbPiano" type="checkbox" checked> 🎹 Piano</label>
+      <label class="check" id="pbVoiceWrap"><input id="pbVoice" type="checkbox" checked> 🎤 Voz</label>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button id="pbPlay" class="btn" type="button">▶ Ouvir de novo</button>
+      <button id="pbClose" class="btn ghost" type="button">Fechar</button>
     </div>
   </div>
 </div>
@@ -653,7 +698,7 @@ const synth = {
     return true;
   },
 
-  createVoice(midi, velocity, when) {
+  createVoice(midi, velocity, when, destination = this.out) {
     const c = this.ctx;
     const freq = 440 * Math.pow(2, (midi - 69) / 12);
     const gain = c.createGain();
@@ -668,7 +713,7 @@ const synth = {
     const overtoneGain = c.createGain(); overtoneGain.gain.value = 0.22;
     body.connect(filter);
     overtone.connect(overtoneGain); overtoneGain.connect(filter);
-    filter.connect(gain); gain.connect(this.out);
+    filter.connect(gain); gain.connect(destination);
     body.start(when); overtone.start(when);
     return { gain, oscs: [body, overtone] };
   },
@@ -787,6 +832,7 @@ function renderHome() {
   importedGrid.textContent = '';
   importedSongs.forEach(s => importedGrid.appendChild(songCard(s, best)));
   $('#importedWrap').classList.toggle('hidden', importedSongs.length === 0);
+  renderRecordings();
 }
 
 function homeToast(text) {
@@ -1033,6 +1079,8 @@ $('#versionSeg').addEventListener('click', e => {
 });
 
 function goHome() {
+  if (REC.active || REC.armed) stopRecording();
+  releaseMic();
   P.playing = false;
   P.countdownEnd = 0;
   cancelAnimationFrame(P.raf);
@@ -1044,6 +1092,8 @@ function goHome() {
 
 function restart() {
   synth.ensure();
+  if (REC.active) stopRecording();
+  $('#listenRecBtn').classList.add('hidden');
   P.notes = P.song.notes.map(n => ({ ...n, hit: false, missed: false, autoPlayed: false, active: isActiveNote(n) }));
   P.t = -LEAD_IN;
   P.stats = { correct: 0, wrong: 0, missed: 0, total: P.notes.filter(n => n.active).length };
@@ -1071,6 +1121,12 @@ function syncControls() {
   $('#speed').value = Math.round(P.speed * 100);
   $('#speedVal').textContent = `${Math.round(P.speed * 100)}%`;
   $('#playBtn').textContent = (P.playing || P.countdownEnd) ? '❚❚' : '▶';
+  const recording = REC.active || REC.armed;
+  $('#recBtn').classList.toggle('recording', recording);
+  $('#recBtn').textContent = recording ? '⏹' : '⏺';
+  $('#recBtn').setAttribute('aria-label', recording ? 'Parar gravação' : 'Gravar');
+  $('#micBtn').classList.toggle('on', REC.withVoice);
+  $('#micBtn').disabled = recording;
 }
 
 function flash(midi, kind) {
@@ -1098,6 +1154,7 @@ function registerWrong(midi) {
 
 function pressKey(midi, velocity, source) {
   P.held.set(midi, (P.held.get(midi) || 0) + 1);
+  recordNoteOn(midi, velocity);
   if (source !== 'midi' || settings.soundForPiano) synth.noteOn(midi, velocity);
 
   if (!playerVisible() || !P.playing || P.done || P.mode === 'listen') { flash(midi, 'neutral'); return; }
@@ -1128,6 +1185,7 @@ function releaseKey(midi, source) {
   const count = (P.held.get(midi) || 0) - 1;
   if (count > 0) { P.held.set(midi, count); return; }
   P.held.delete(midi);
+  recordNoteOff(midi);
   if (source !== 'midi' || settings.soundForPiano) synth.noteOff(midi);
   const f = P.flashes.get(midi);
   if (f) f.until = performance.now() + 160;
@@ -1144,6 +1202,7 @@ function update(dt, now) {
   if (P.countdownEnd && now >= P.countdownEnd) {
     P.countdownEnd = 0;
     P.playing = true;
+    if (REC.armed) startRecording();
     syncControls();
   }
   if (!P.playing || P.done) return;
@@ -1161,7 +1220,11 @@ function update(dt, now) {
     if (n.start > next) break;
     if (!n.active && !n.autoPlayed) {
       n.autoPlayed = true;
-      if (n.start + n.dur > next - 0.05) synth.play(n.midi, n.dur / P.speed, P.mode === 'listen' ? 0.7 : 0.45);
+      if (n.start + n.dur > next - 0.05) {
+        const velocity = P.mode === 'listen' ? 0.7 : 0.45;
+        synth.play(n.midi, n.dur / P.speed, velocity);
+        recordAuto(n.midi, n.dur / P.speed, velocity);
+      }
     }
     if (P.mode === 'play' && n.active && !n.hit && !n.missed && n.start + HIT_WINDOW < next) {
       n.missed = true;
@@ -1178,6 +1241,7 @@ function update(dt, now) {
 function finish() {
   P.done = true;
   P.playing = false;
+  if (REC.active) stopRecording().then(rec => { if (rec) $('#listenRecBtn').classList.remove('hidden'); });
   syncControls();
   const { correct, wrong, missed, total } = P.stats;
   let score = 0;
@@ -1202,6 +1266,299 @@ function finish() {
     P.mode === 'wait' ? `Acertos: ${correct} · Teclas erradas: ${wrong}` :
     `Acertos: ${correct} de ${total} · Perdidas: ${missed} · Erradas: ${wrong}`;
   $('#results').classList.remove('hidden');
+}
+
+/* =====================================================================
+   Gravações: o que ela toca (notas) + voz opcional pelo microfone.
+   Ficam no IndexedDB do tablet; sem IndexedDB, só durante a sessão.
+   ===================================================================== */
+const formatTime = secs => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
+
+const recDb = {
+  memory: [],
+  dbPromise: null,
+
+  open() {
+    if (!this.dbPromise) {
+      this.dbPromise = new Promise(resolve => {
+        try {
+          const req = indexedDB.open('teclinhas', 1);
+          req.onupgradeneeded = () => req.result.createObjectStore('recordings', { keyPath: 'id' });
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        } catch { resolve(null); }
+      });
+    }
+    return this.dbPromise;
+  },
+
+  async run(mode, action) {
+    const db = await this.open();
+    if (!db) return null;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('recordings', mode);
+      const req = action(tx.objectStore('recordings'));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+
+  async all() {
+    const rows = (await this.open()) ? await this.run('readonly', s => s.getAll()) : this.memory;
+    return [...(rows || [])].sort((a, b) => b.date - a.date);
+  },
+
+  async put(rec) {
+    if (!(await this.open())) { this.memory.push(rec); return false; }
+    await this.run('readwrite', s => s.put(rec));
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    return true;
+  },
+
+  async remove(id) {
+    if (!(await this.open())) { this.memory = this.memory.filter(r => r.id !== id); return; }
+    await this.run('readwrite', s => s.delete(id));
+  },
+};
+
+const REC = {
+  armed: false, active: false, withVoice: false,
+  startAt: 0, events: [], open: new Map(),
+  stream: null, recorder: null, chunks: [], mime: '',
+};
+
+function pickAudioMime() {
+  if (!window.MediaRecorder) return '';
+  return ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+    .find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+async function toggleMic() {
+  if (REC.withVoice) { releaseMic(); syncControls(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    showToast('Este navegador não grava áudio', '#ff5d73');
+    return;
+  }
+  try {
+    // o cancelamento de eco tira do microfone o som que o próprio app toca
+    REC.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true },
+    });
+    REC.withVoice = true;
+    showToast('🎤 Microfone ligado', '#3ddc84');
+  } catch {
+    showToast('Sem permissão para o microfone', '#ff5d73');
+  }
+  syncControls();
+}
+
+function releaseMic() {
+  if (REC.stream) REC.stream.getTracks().forEach(t => t.stop());
+  REC.stream = null;
+  REC.withVoice = false;
+}
+
+function toggleRecording() {
+  if (REC.active || REC.armed) { stopRecording(); return; }
+  REC.armed = true;
+  restart(); // a gravação começa junto com a música, depois da contagem
+}
+
+function startRecording() {
+  REC.armed = false;
+  REC.active = true;
+  REC.startAt = performance.now();
+  REC.events = [];
+  REC.open.clear();
+  REC.chunks = [];
+  REC.recorder = null;
+  if (REC.withVoice && REC.stream) {
+    REC.mime = pickAudioMime();
+    try {
+      REC.recorder = new MediaRecorder(REC.stream, REC.mime ? { mimeType: REC.mime } : undefined);
+      REC.recorder.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
+      REC.recorder.start(1000);
+    } catch {
+      REC.recorder = null;
+      showToast('Não deu para gravar a voz', '#ff5d73');
+    }
+  }
+  syncControls();
+}
+
+const recNow = () => (performance.now() - REC.startAt) / 1000;
+
+function recordNoteOn(midi, velocity) {
+  if (!REC.active) return;
+  recordNoteOff(midi);
+  REC.open.set(midi, { t: recNow(), velocity });
+}
+
+function recordNoteOff(midi) {
+  if (!REC.active) return;
+  const open = REC.open.get(midi);
+  if (!open) return;
+  REC.open.delete(midi);
+  REC.events.push([+open.t.toFixed(3), midi, +Math.max(0.05, recNow() - open.t).toFixed(3), +open.velocity.toFixed(2)]);
+}
+
+function recordAuto(midi, dur, velocity) {
+  if (!REC.active) return;
+  REC.events.push([+recNow().toFixed(3), midi, +dur.toFixed(3), velocity]);
+}
+
+async function stopRecording() {
+  if (REC.armed && !REC.active) { REC.armed = false; syncControls(); return null; }
+  if (!REC.active) return null;
+  for (const midi of [...REC.open.keys()]) recordNoteOff(midi);
+  REC.active = false;
+  const duration = recNow();
+  let voice = null;
+  if (REC.recorder && REC.recorder.state !== 'inactive') {
+    const stopped = new Promise(resolve => { REC.recorder.onstop = resolve; });
+    REC.recorder.stop();
+    await stopped;
+    voice = REC.chunks.length ? new Blob(REC.chunks, { type: REC.recorder.mimeType || REC.mime || 'audio/webm' }) : null;
+  }
+  REC.recorder = null;
+  syncControls();
+  if (duration < 1.5 || (!REC.events.length && !voice)) return null;
+
+  const rec = {
+    id: `rec-${Date.now()}`,
+    title: P.group ? P.group.title : 'Gravação',
+    version: P.group && Object.keys(P.group.versions).length > 1 ? VERSION_LABELS[P.versionId] : '',
+    date: Date.now(),
+    duration: +duration.toFixed(2),
+    events: REC.events.sort((a, b) => a[0] - b[0]),
+    voice,
+  };
+  let saved = false;
+  try { saved = await recDb.put(rec); } catch { saved = false; }
+  P.lastRecording = rec;
+  showToast(saved ? '💾 Gravação salva!' : 'Gravação guardada só até fechar o app', saved ? '#3ddc84' : '#ffb703');
+  return rec;
+}
+
+/* ---------- Ouvir uma gravação ---------- */
+const PB = { rec: null, bus: null, audio: null, url: '', raf: 0, t0: 0, idx: 0 };
+
+function openPlayback(rec) {
+  PB.rec = rec;
+  $('#pbTitle').textContent = rec.title;
+  $('#pbMeta').textContent = recordingMeta(rec);
+  $('#pbVoiceWrap').classList.toggle('hidden', !rec.voice);
+  $('#playback').classList.remove('hidden');
+  startPlayback();
+}
+
+function stopPlayback() {
+  cancelAnimationFrame(PB.raf);
+  if (PB.bus) { PB.bus.disconnect(); PB.bus = null; }
+  if (PB.audio) { PB.audio.pause(); PB.audio = null; }
+  if (PB.url) { URL.revokeObjectURL(PB.url); PB.url = ''; }
+}
+
+async function startPlayback() {
+  stopPlayback();
+  if (!synth.ensure()) return;
+  PB.bus = synth.ctx.createGain();
+  PB.bus.gain.value = $('#pbPiano').checked ? 1 : 0;
+  PB.bus.connect(synth.out);
+  PB.idx = 0;
+  if (PB.rec.voice) {
+    PB.url = URL.createObjectURL(PB.rec.voice);
+    PB.audio = new Audio(PB.url);
+    PB.audio.volume = $('#pbVoice').checked ? 1 : 0;
+    try { await PB.audio.play(); } catch { /* sem áudio: segue só com o piano */ }
+  }
+  PB.t0 = synth.ctx.currentTime + 0.05;
+  PB.raf = requestAnimationFrame(playbackTick);
+}
+
+// agenda as notas aos poucos (1 s à frente) para não criar milhares de osciladores de uma vez
+function playbackTick() {
+  const elapsed = synth.ctx.currentTime - PB.t0;
+  const events = PB.rec.events;
+  while (PB.idx < events.length && events[PB.idx][0] <= elapsed + 1) {
+    const [t, midi, dur, velocity] = events[PB.idx++];
+    if (t + dur < elapsed) continue;
+    const voice = synth.createVoice(midi, velocity, PB.t0 + t, PB.bus);
+    synth.releaseVoice(voice, PB.t0 + t + Math.max(0.08, dur), 0.12);
+  }
+  const total = PB.rec.duration;
+  $('#pbFill').style.width = `${clamp(elapsed / total, 0, 1) * 100}%`;
+  $('#pbTime').textContent = `${formatTime(clamp(elapsed, 0, total))} / ${formatTime(total)}`;
+  if (elapsed > total + 0.5) { stopPlayback(); return; }
+  PB.raf = requestAnimationFrame(playbackTick);
+}
+
+$('#pbPlay').addEventListener('click', startPlayback);
+$('#pbClose').addEventListener('click', () => { stopPlayback(); $('#playback').classList.add('hidden'); });
+$('#pbPiano').addEventListener('change', e => { if (PB.bus) PB.bus.gain.value = e.target.checked ? 1 : 0; });
+$('#pbVoice').addEventListener('change', e => { if (PB.audio) PB.audio.volume = e.target.checked ? 1 : 0; });
+$('#recBtn').addEventListener('click', toggleRecording);
+$('#micBtn').addEventListener('click', toggleMic);
+$('#listenRecBtn').addEventListener('click', () => { if (P.lastRecording) openPlayback(P.lastRecording); });
+
+/* ---------- Lista na tela inicial ---------- */
+function recordingMeta(rec) {
+  const d = new Date(rec.date);
+  const when = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return [rec.version, when, formatTime(rec.duration), rec.voice ? '🎤 com voz' : ''].filter(Boolean).join(' · ');
+}
+
+function voiceFileName(rec) {
+  const ext = (rec.voice.type.match(/audio\/(\w+)/) || [, 'webm'])[1];
+  const safe = rec.title.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').toLowerCase();
+  return `teclinhas-${safe}-${new Date(rec.date).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.${ext}`;
+}
+
+async function renderRecordings() {
+  let recs = [];
+  try { recs = await recDb.all(); } catch { recs = []; }
+  const list = $('#recList');
+  list.textContent = '';
+  $('#recordingsWrap').classList.toggle('hidden', recs.length === 0);
+  for (const rec of recs) {
+    const item = el('div', 'rec-item');
+    const info = el('div', 'rec-info');
+    info.appendChild(el('div', 'rec-title', rec.title));
+    info.appendChild(el('div', 'rec-meta', recordingMeta(rec)));
+    item.appendChild(info);
+
+    const play = el('button', 'btn', '▶ Ouvir');
+    play.type = 'button';
+    play.addEventListener('click', () => openPlayback(rec));
+    item.appendChild(play);
+
+    if (rec.voice) {
+      const link = el('a', 'btn ghost', '⬇ Voz');
+      link.download = voiceFileName(rec);
+      link.addEventListener('click', () => {
+        link.href = URL.createObjectURL(rec.voice);
+        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+      });
+      item.appendChild(link);
+    }
+
+    // apagar pede um segundo toque (sem caixas de confirmação do navegador)
+    const del = el('button', 'btn ghost', '🗑');
+    del.type = 'button';
+    del.setAttribute('aria-label', 'Apagar gravação');
+    del.addEventListener('click', async () => {
+      if (!del.dataset.confirm) {
+        del.dataset.confirm = '1';
+        del.textContent = 'Apagar?';
+        setTimeout(() => { delete del.dataset.confirm; del.textContent = '🗑'; }, 3000);
+        return;
+      }
+      await recDb.remove(rec.id);
+      renderRecordings();
+    });
+    item.appendChild(del);
+    list.appendChild(item);
+  }
 }
 
 /* =====================================================================
@@ -1358,6 +1715,16 @@ function draw(now) {
       ctx.fillStyle = '#ffb703';
       ctx.fillText(`🔥 ${P.streak}`, W - 16, 14);
     }
+  }
+
+  // indicador de gravação
+  if (REC.active || REC.armed) {
+    const secs = REC.active ? Math.floor((now - REC.startAt) / 1000) : 0;
+    const label = REC.active ? `GRAVANDO ${formatTime(secs)}${REC.withVoice ? ' 🎤' : ''}` : 'Vai gravar…';
+    ctx.textAlign = 'right';
+    ctx.font = `900 16px ${FONT}`;
+    ctx.fillStyle = REC.active && Math.floor(now / 500) % 2 ? 'rgba(255,93,115,0.55)' : '#ff5d73';
+    ctx.fillText(`● ${label}`, W - 16, P.streak >= 3 ? 40 : 14);
   }
 
   // dica "Toque ..."
